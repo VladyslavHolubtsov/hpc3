@@ -1,76 +1,85 @@
-#include <iostream>
-#include <cstdlib>
-#include <cmath>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include <omp.h>
 
-#define N 1000  // Розмірність матриці
+// Функція для обчислення векторного добутку двох векторів
+void vector_cross_product(double *a, double *b, double *result) {
+    result[0] = a[1] * b[2] - a[2] * b[1];
+    result[1] = a[2] * b[0] - a[0] * b[2];
+    result[2] = a[0] * b[1] - a[1] * b[0];
+}
 
-void gram_schmidt(double* A, double* Q, double* R, int n) {
+// Функція для нормалізації вектора
+void vector_normalize(double *v) {
+    double length = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    v[0] /= length;
+    v[1] /= length;
+    v[2] /= length;
+}
+
+// Функція для ортогоналізації стовпців матриці методом Грама-Шмідта
+void gram_schmidt(double **matrix, int rows, int cols) {
     int i, j, k;
-    double sum;
-
-    #pragma omp parallel for private(i, j, k, sum) shared(A, Q, R, n)
-    for (j = 0; j < n; j++) {
-        for (i = 0; i < j; i++) {
-            sum = 0.0;
-            for (k = 0; k < n; k++) {
-                sum += Q[k*n + i] * A[k*n + j];
+    double *temp = malloc(cols * sizeof(double));
+    
+    for (i = 1; i < cols; i++) {
+        for (j = 0; j < i; j++) {
+            // Обчислення проекції стовпця на попередні ортогональні стовпці
+            double projection = 0;
+            for (k = 0; k < rows; k++) {
+                projection += matrix[k][i] * matrix[k][j];
             }
-            R[i*n + j] = sum;
-            #pragma omp parallel for
-            for (k = 0; k < n; k++) {
-                A[k*n + j] -= sum * Q[k*n + i];
+            
+            // Віднімання проекції від поточного стовпця
+            for (k = 0; k < rows; k++) {
+                temp[k] = matrix[k][i] - projection * matrix[k][j];
+            }
+            
+            // Оновлення стовпця матриці
+            for (k = 0; k < rows; k++) {
+                matrix[k][i] = temp[k];
             }
         }
-        sum = 0.0;
-        for (k = 0; k < n; k++) {
-            sum += A[k*n + j] * A[k*n + j];
-        }
-        R[j*n + j] = std::sqrt(sum);
-        #pragma omp parallel for
-        for (k = 0; k < n; k++) {
-            Q[k*n + j] = A[k*n + j] / R[j*n + j];
-        }
+        
+        // Нормалізація стовпця
+        vector_normalize(matrix[:, i]);
     }
+    
+    free(temp);
 }
 
 int main() {
-    int n = N;
-    double* A = new double[n*n];
-    double* Q = new double[n*n];
-    double* R = new double[n*n];
-
-    // Ініціалізація матриці A випадковими значеннями
-    #pragma omp parallel for
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            A[i*n + j] = std::rand() / double(RAND_MAX);
+    int rows = 3;
+    int cols = 3;
+    double **matrix = malloc(rows * sizeof(double *));
+    int i, j;
+    
+    // Ініціалізація матриці випадковими значеннями
+    for (i = 0; i < rows; i++) {
+        matrix[i] = malloc(cols * sizeof(double));
+        for (j = 0; j < cols; j++) {
+            matrix[i][j] = (double)rand() / RAND_MAX; // Випадкове число від 0 до 1
         }
     }
-
-    // Виклик функції ортогоналізації
-    gram_schmidt(A, Q, R, n);
-
-    // Виведення результатів
-    std::cout << "Матриця Q:" << std::endl;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            std::cout << Q[i*n + j] << " ";
+    
+    // Виконання ортогоналізації стовпців
+    gram_schmidt(matrix, rows, cols);
+    
+    // Виведення результату
+    printf("Результат ортогоналізації:\n");
+    for (i = 0; i < rows; i++) {
+        for (j = 0; j < cols; j++) {
+            printf("%f ", matrix[i][j]);
         }
-        std::cout << std::endl;
+        printf("\n");
     }
-
-    std::cout << "Матриця R:" << std::endl;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            std::cout << R[i*n + j] << " ";
-        }
-        std::cout << std::endl;
+    
+    // Звільнення пам'яті
+    for (i = 0; i < rows; i++) {
+        free(matrix[i]);
     }
-
-    delete[] A;
-    delete[] Q;
-    delete[] R;
-
+    free(matrix);
+    
     return 0;
 }
