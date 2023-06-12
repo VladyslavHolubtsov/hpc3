@@ -1,77 +1,76 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+#include <cstdlib>
+#include <cmath>
 #include <omp.h>
-#include <math.h>
 
-#define MATRIX_SIZE 1000
+#define N 1000  // Розмірність матриці
 
-void gram_schmidt(double matrix[MATRIX_SIZE][MATRIX_SIZE], double q[MATRIX_SIZE][MATRIX_SIZE], double r[MATRIX_SIZE][MATRIX_SIZE]) {
+void gram_schmidt(double* A, double* Q, double* R, int n) {
     int i, j, k;
     double sum;
 
-    // Обчислення першого стовпця Q і матриці R
-    sum = 0.0;
-    for (i = 0; i < MATRIX_SIZE; i++) {
-        q[i][0] = matrix[i][0];
-        sum += q[i][0] * q[i][0];
-    }
-    r[0][0] = sqrt(sum);
-
-    for (i = 0; i < MATRIX_SIZE; i++) {
-        q[i][0] /= r[0][0];
-    }
-
-    // Обчислення решти стовпців Q і матриці R
-    for (j = 1; j < MATRIX_SIZE; j++) {
-        for (i = 0; i < MATRIX_SIZE; i++) {
+    #pragma omp parallel for private(i, j, k, sum) shared(A, Q, R, n)
+    for (j = 0; j < n; j++) {
+        for (i = 0; i < j; i++) {
             sum = 0.0;
-            for (k = 0; k < j; k++) {
-                sum += q[i][k] * matrix[i][j];
+            for (k = 0; k < n; k++) {
+                sum += Q[k*n + i] * A[k*n + j];
             }
-            r[k][j] = sum;
-
-            for (k = 0; k < j; k++) {
-                matrix[i][j] -= r[k][j] * q[i][k];
+            R[i*n + j] = sum;
+            #pragma omp parallel for
+            for (k = 0; k < n; k++) {
+                A[k*n + j] -= sum * Q[k*n + i];
             }
-            r[j][j] = sqrt(matrix[i][j] * matrix[i][j] + sum * sum);
-            q[i][j] = matrix[i][j] / r[j][j];
+        }
+        sum = 0.0;
+        for (k = 0; k < n; k++) {
+            sum += A[k*n + j] * A[k*n + j];
+        }
+        R[j*n + j] = std::sqrt(sum);
+        #pragma omp parallel for
+        for (k = 0; k < n; k++) {
+            Q[k*n + j] = A[k*n + j] / R[j*n + j];
         }
     }
 }
 
 int main() {
-    int num_threads;
-    double start_time, end_time;
-    double matrix[MATRIX_SIZE][MATRIX_SIZE];
-    double q[MATRIX_SIZE][MATRIX_SIZE];
-    double r[MATRIX_SIZE][MATRIX_SIZE];
-    double acceleration;
+    int n = N;
+    double* A = new double[n*n];
+    double* Q = new double[n*n];
+    double* R = new double[n*n];
 
-    srand(0);
-
-    // Ініціалізація матриці
-    for (int i = 0; i < MATRIX_SIZE; i++) {
-        for (int j = 0; j < MATRIX_SIZE; j++) {
-            matrix[i][j] = (double)rand() / RAND_MAX;
+    // Ініціалізація матриці A випадковими значеннями
+    #pragma omp parallel for
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            A[i*n + j] = std::rand() / double(RAND_MAX);
         }
     }
 
-    printf("Кількість потоків\tЧас виконання (сек)\tПрискорення\n");
+    // Виклик функції ортогоналізації
+    gram_schmidt(A, Q, R, n);
 
-    for (num_threads = 1; num_threads <= 8; num_threads++) {
-        omp_set_num_threads(num_threads);
-        start_time = omp_get_wtime();
-
-        #pragma omp parallel shared(matrix, q, r)
-        {
-            #pragma omp single
-            gram_schmidt(matrix, q, r);
+    // Виведення результатів
+    std::cout << "Матриця Q:" << std::endl;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            std::cout << Q[i*n + j] << " ";
         }
-
-        end_time = omp_get_wtime();
-        acceleration = (end_time - start_time) / (end_time / num_threads);
-        printf("%d\t\t\t%.6f\t\t\t%.2f\n", num_threads, end_time - start_time, acceleration);
+        std::cout << std::endl;
     }
+
+    std::cout << "Матриця R:" << std::endl;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            std::cout << R[i*n + j] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    delete[] A;
+    delete[] Q;
+    delete[] R;
 
     return 0;
 }
