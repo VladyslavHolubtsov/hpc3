@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <omp.h>
 
 #define MATRIX_SIZE 1000
@@ -47,8 +48,12 @@ int main() {
         }
     }
     
+    double start_time = omp_get_wtime();
+    
     // Виклик функції ортогоналізації
     gram_schmidt(matrix, MATRIX_SIZE);
+    
+    double end_time = omp_get_wtime();
     
     // Виведення результату
     printf("Orthogonalized matrix:\n");
@@ -64,6 +69,17 @@ int main() {
         free(matrix[i]);
     }
     free(matrix);
+    
+    double execution_time = end_time - start_time;
+    printf("Execution time: %f seconds\n", execution_time);
+    
+    int num_processors = omp_get_num_procs();
+    double speedup = execution_time / (execution_time / NUM_THREADS + (1.0 - 1.0 / NUM_THREADS));
+    double efficiency = speedup / NUM_THREADS * 100.0;
+    
+    printf("Number of processors: %d\n", NUM_THREADS);
+    printf("Speedup: %f\n", speedup);
+    printf("Efficiency: %.2f%%\n", efficiency);
     
     return 0;
 }
